@@ -1,0 +1,106 @@
+javascript:(function(){
+  if(window.__chaosActive) return;
+  const overlay=document.createElement('div');
+  Object.assign(overlay.style,{
+    position:'fixed',
+    top:0,left:0,width:'100vw',height:'100vh',
+    background:'rgba(0,0,0,0.75)',
+    display:'flex',
+    justifyContent:'center',
+    alignItems:'center',
+    zIndex:2147483647,
+  });
+  const box=document.createElement('div');
+  Object.assign(box.style,{
+    background:'#222',
+    color:'#eee',
+    padding:'25px 30px',
+    borderRadius:'10px',
+    fontFamily:'Arial, sans-serif',
+    fontSize:'18px',
+    textAlign:'center',
+    width:'320px',
+    boxShadow:'0 0 15px crimson',
+  });
+  box.innerHTML=`
+    <div style="margin-bottom:20px; font-weight:bold;">⚠️ Warning! This is malware.</div>
+    <div style="margin-bottom:25px;">Are you sure u want to run this malware?</div>
+    <button id="yesBtn" style="margin-right:15px; padding:10px 18px; font-size:16px; cursor:pointer; border:none; border-radius:6px; background:#e74c3c; color:#fff;">YES</button>
+    <button id="noBtn" style="padding:10px 18px; font-size:16px; cursor:pointer; border:none; border-radius:6px; background:#95a5a6; color:#222;">NO</button>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  function cleanup() {
+    document.body.style.transform='';
+    if(overlay) overlay.remove();
+    if(window.__chaosActive) window.__chaosActive = false;
+    if(window.__audioCtx){
+      window.__audioCtx.close();
+      delete window.__audioCtx;
+    }
+  }
+  document.getElementById('noBtn').onclick = () => { cleanup(); };
+  document.getElementById('yesBtn').onclick = () => {
+    cleanup();
+    startChaos();
+  };
+  function startChaos() {
+    if(window.__chaosActive) return;
+    window.__chaosActive=true;
+
+    window.__audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const sampleRate = window.__audioCtx.sampleRate;
+    const targetRate = 8000; // target sample rate in Hz
+    const ratio = sampleRate / targetRate; // how many AudioContext samples per bytebeat sample
+
+    let t = 0;
+    let sampleCounter = 0;
+
+    const bufferSize = 4096;
+    const node = window.__audioCtx.createScriptProcessor(bufferSize,0,1);
+    node.onaudioprocess = e => {
+      const output = e.outputBuffer.getChannelData(0);
+      for(let i=0; i<bufferSize; i++){
+        if(sampleCounter <= 0){
+          // Bytebeat formula evaluated only every ratio samples to get 8kHz base
+          window.__lastVal = t*(( (t & 4096) ? (t % 65536 < 59392 ? 7 : (t & 7)) : 16 ) + (1 & (t >> 14)))
+          >> (3 & (-t) >> ((t & 2048) ? 2 : 10))
+          | t >> ((t & 16384) ? ((t & 4096) ? 10 : 3) : 2);
+          t++;
+          sampleCounter = ratio;
+        }
+        sampleCounter--;
+        // Normalize bytebeat value to [-1..1]
+        output[i] = ((window.__lastVal & 255) - 128) / 128;
+      }
+    };
+    node.connect(window.__audioCtx.destination);
+
+    const chaosOverlay = document.createElement('div');
+    Object.assign(chaosOverlay.style,{
+      position:'fixed',top:0,left:0,width:'100vw',height:'100vh',
+      zIndex:2147483647,
+      background:'black',
+      mixBlendMode:'difference',
+      pointerEvents:'none',
+      animation:'chaosFlash 100ms infinite',
+    });
+    document.body.appendChild(chaosOverlay);
+
+    const style=document.createElement('style');
+    style.textContent=`@keyframes chaosFlash{
+      0%{background:#${Math.floor(Math.random()*16777215).toString(16)};}
+      50%{background:#${Math.floor(Math.random()*16777215).toString(16)};}
+      100%{background:#${Math.floor(Math.random()*16777215).toString(16)};}
+    }`;
+    document.head.appendChild(style);
+
+    let angle=0;
+    function glitch(){
+      angle += Math.random()*20-10;
+      document.body.style.transform = `rotate(${angle}deg) scale(${1+Math.random()*0.3}) skew(${Math.random()*20-10}deg,${Math.random()*20-10}deg)`;
+      setTimeout(glitch, 50+Math.random()*50);
+    }
+    glitch();
+  }
+})();
